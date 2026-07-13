@@ -1,0 +1,6 @@
+{
+  "name": "BASAdventure",
+  "description": "Isang masayang educational app para sa mga bata upang matutong mag-ABAKADA at magbasa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
