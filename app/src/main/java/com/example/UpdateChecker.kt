@@ -19,7 +19,7 @@ data class AppUpdateInfo(
 object UpdateChecker {
     // Palitan ito ng iyong JSON endpoint URL o GitHub API
     // Halimbawa: "https://raw.githubusercontent.com/username/repo/main/update.json"
-    private const val UPDATE_URL = "https://example.com/update.json"
+    private const val UPDATE_URL = "https://gist.githubusercontent.com/dreiDdeveye/7a3ea6b4e4b70d263148d2d74e4b696a/raw/b284bf1f13605626bdda43ea943f41c6d24aa591/update.json"
 
     suspend fun checkForUpdates(): AppUpdateInfo? {
         return withContext(Dispatchers.IO) {
