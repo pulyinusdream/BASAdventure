@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.geometry.CornerRadius
 import com.example.data.UserProgress
 import androidx.compose.foundation.shape.CircleShape
@@ -103,7 +104,11 @@ fun BasaAdventureApp(
                         is Screen.Landing -> LandingScreen(viewModel = viewModel)
                         is Screen.DataGathering -> DataGatheringScreen(viewModel = viewModel)
                         is Screen.Home -> HomeScreen(viewModel = viewModel, progress = progressState)
+                        is Screen.Level1Menu -> Level1MenuScreen(viewModel = viewModel, progress = progressState)
                         is Screen.Learn -> LearnScreen(viewModel = viewModel, progress = progressState)
+                        is Screen.KatinigExam1 -> KatinigExam1Screen(viewModel = viewModel, progress = progressState)
+                        is Screen.KatinigExam2 -> KatinigExam2Screen(viewModel = viewModel, progress = progressState)
+                        is Screen.KatinigExam3 -> KatinigExam3Screen(viewModel = viewModel, progress = progressState)
                         is Screen.Games -> GamesScreen(viewModel = viewModel)
                         is Screen.Quiz -> QuizScreen(viewModel = viewModel)
                         is Screen.Progress -> ProgressScreen(viewModel = viewModel, progress = progressState)
@@ -208,6 +213,23 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     var showAvatarDialog by remember { mutableStateOf(false) }
+    var showAlphabetDialog by remember { mutableStateOf(false) }
+    
+    if (showAlphabetDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAlphabetDialog = false },
+            title = { Text("ALPHABETONG PILIPINO", fontWeight = FontWeight.Bold, color = PrimaryPurple) },
+            text = { Text("Ipapakita dito ang arranged the Filipino Alphabet") },
+            confirmButton = {
+                Button(onClick = { 
+                    showAlphabetDialog = false 
+                    viewModel.navigateTo(Screen.Level1Menu)
+                }) {
+                    Text("Ipagpatuloy")
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -319,7 +341,7 @@ fun HomeScreen(
                         subtitle = "Mga Titik",
                         icon = Icons.Default.MenuBook,
                         bgColor = Color(0xFF4BA3E3), // Blue
-                        onClick = { viewModel.navigateTo(Screen.Learn) },
+                        onClick = { showAlphabetDialog = true },
                         modifier = Modifier.weight(1f).testTag("level_1_btn"),
                         isLocked = progress.unlockedLevel < 1
                     )
@@ -529,33 +551,33 @@ fun LearnScreen(
 ) {
     val selectedIdx by viewModel.selectedLetterIdx.collectAsState()
     val isMastered by viewModel.isLetterMastered.collectAsState()
-    val currentLetter = viewModel.letters[selectedIdx]
+    val currentList by viewModel.currentLettersList.collectAsState()
+    val currentLetter = if (selectedIdx in currentList.indices) currentList[selectedIdx] else currentList.firstOrNull() ?: viewModel.letters.first()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .testTag("learn_screen")
     ) {
-        // Level Title
-        Box(
+        // Level Title with Back Button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFCE93D8))
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Level1Menu) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
                 Text(
-                    text = "LEVEL 1",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "ALPABETONG PILIPINO",
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    fontSize = 24.sp
+                    text = "MGA LETRA",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 )
             }
         }
@@ -569,7 +591,7 @@ fun LearnScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            itemsIndexed(viewModel.letters) { idx, item ->
+            itemsIndexed(currentList) { idx, item ->
                 val isSelected = idx == selectedIdx
                 Box(
                     modifier = Modifier
@@ -668,47 +690,31 @@ fun LearnScreen(
                         LetterIllustration(letterChar = currentLetter.char)
                     }
 
-                    // Word Pronunciation Display
+                    // Play Sound Button
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFFFEBEE))
-                            .clickable { viewModel.speakLetterAndWord(currentLetter) }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                            .background(Color(0xFFE8F5E9))
+                            .clickable { viewModel.speakLetterSound(currentLetter) }
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            text = currentLetter.word,
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFD32F2F)
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "(${currentLetter.englishWord})",
-                            style = MaterialTheme.typography.bodyMedium.copy(color = SubtitleGray)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.Default.VolumeUp,
-                            contentDescription = "Pakinggan ang salita",
-                            tint = Color(0xFFD32F2F),
-                            modifier = Modifier.size(20.dp)
+                            contentDescription = "Pakinggan ang tunog",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Pakinggan",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32)
+                            )
                         )
                     }
-
-                    // Example Sentence
-                    Text(
-                        text = currentLetter.sampleSentence,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = TextDark,
-                            lineHeight = 22.sp
-                        )
-                    )
                 }
             }
 
@@ -720,7 +726,7 @@ fun LearnScreen(
             ) {
                 IconButton(
                     onClick = {
-                        val prev = (selectedIdx - 1 + 20) % 20
+                        val prev = (selectedIdx - 1 + currentList.size) % currentList.size
                         viewModel.selectedLetterIdx.value = prev
                     },
                     modifier = Modifier
@@ -763,7 +769,7 @@ fun LearnScreen(
 
                 IconButton(
                     onClick = {
-                        val next = (selectedIdx + 1) % 20
+                        val next = (selectedIdx + 1) % currentList.size
                         viewModel.selectedLetterIdx.value = next
                     },
                     modifier = Modifier
@@ -819,7 +825,8 @@ fun LearnScreen(
 // --- GAMES SCREEN IMPLEMENTATION ---
 @Composable
 fun GamesScreen(viewModel: AppViewModel) {
-    var activeGame by remember { mutableStateOf<String?>(null) } // null, "match", "listen", "bubble", "memory"
+    var activeGame by remember { mutableStateOf<String?>(null) }
+ // null, "match", "listen", "bubble", "memory"
 
     if (activeGame == null) {
         // Game Menu Selector Screen (Matches Screenshot 3)
@@ -936,12 +943,12 @@ fun GamesScreen(viewModel: AppViewModel) {
                     "listen" -> PlayListenAndChoose(viewModel)
                     "bubble" -> PlayBubblePop(viewModel)
                     "memory" -> PlayMemoryGame(viewModel)
-                }
-            }
+                         }
         }
     }
-}
 
+}
+}
 @Composable
 fun GameMenuCard(
     title: String,
@@ -1257,12 +1264,11 @@ fun PlayBubblePop(viewModel: AppViewModel) {
                                     fontWeight = FontWeight.Black,
                                     color = Color(0xFF006064)
                                 )
-                            )
-                        }
-                    }
-                }
+                            )                }
             }
-        } else {
+        }
+    }
+} else {
             // Game Won View
             Column(
                 modifier = Modifier
@@ -1360,11 +1366,11 @@ fun PlayMemoryGame(viewModel: AppViewModel) {
                                     color = Color.White
                                 )
                             }
-                        }
-                    }
                 }
             }
-        } else {
+        }
+    }
+} else {
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -1616,143 +1622,159 @@ fun ProgressScreen(
 ) {
     val masteredLetters = progress.masteredLetters.split(",").filter { it.isNotEmpty() }
     val percent = (masteredLetters.size.toFloat() / 20f).coerceIn(0f, 1f)
+    val gameRecords by viewModel.gameRecords.collectAsState()
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .testTag("progress_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Star Scoreboard Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(PrimaryContainerPurple),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("⭐️", fontSize = 20.sp)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Aking Gantimpala",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = TextDark)
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BentoListenBg)
-                    .border(1.dp, BentoListenBorder, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+        item {
+            // Star Scoreboard Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "⭐ ${progress.stars}", fontWeight = FontWeight.Black, color = BentoListenText)
-            }
-        }
-
-        // Circular Level Percentage Dial
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBgLevel),
-            border = BorderStroke(1.dp, CardBorderLevel),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Kabuuang Antas ng Pagkatuto",
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
-                )
-
-                Box(
-                    modifier = Modifier.size(130.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(modifier = Modifier.size(130.dp)) {
-                        drawArc(
-                            color = Color.White,
-                            startAngle = 0f,
-                            sweepAngle = 360f,
-                            useCenter = false,
-                            style = Stroke(width = 12.dp.toPx())
-                        )
-                        drawArc(
-                            color = PrimaryPurple,
-                            startAngle = -90f,
-                            sweepAngle = percent * 360f,
-                            useCenter = false,
-                            style = Stroke(width = 12.dp.toPx())
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${(percent * 100).toInt()}%",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black, color = PrimaryPurple)
-                        )
-                        Text(
-                            text = "${masteredLetters.size} / 20 Titik",
-                            style = MaterialTheme.typography.labelSmall.copy(color = SubtitleGray)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Mastered Letters Grid
-        Text(
-            text = "Mga Natutunang Letra",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextDark)
-        )
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(viewModel.letters) { item ->
-                val isDone = masteredLetters.contains(item.char)
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, if (isDone) Color(0xFF4CAF50) else CardBorderLevel),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isDone) Color(0xFFE8F5E9) else Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PrimaryContainerPurple),
                         contentAlignment = Alignment.Center
                     ) {
+                        Text("⭐️", fontSize = 20.sp)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Aking Gantimpala",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = TextDark)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BentoListenBg)
+                        .border(1.dp, BentoListenBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(text = "⭐ ${progress.stars}", fontWeight = FontWeight.Black, color = BentoListenText)
+                }
+            }
+        }
+
+        item {
+            // Student Information
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorderLevel),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Impormasyon ng Estudyante",
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(text = "Pangalan: ${progress.firstName} ${progress.middleInitial} ${progress.surname}")
+                    Text(text = "Baitang: ${progress.gradeLevel}")
+                    Text(text = "Kasarian: ${progress.gender}")
+                }
+            }
+        }
+
+        item {
+            // Circular Level Percentage Dial
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBgLevel),
+                border = BorderStroke(1.dp, CardBorderLevel),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Kabuuang Antas ng Pagkatuto",
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+
+                    Box(
+                        modifier = Modifier.size(130.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.size(130.dp)) {
+                            drawArc(
+                                color = Color.White,
+                                startAngle = 0f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 12.dp.toPx())
+                            )
+                            drawArc(
+                                color = PrimaryPurple,
+                                startAngle = -90f,
+                                sweepAngle = percent * 360f,
+                                useCenter = false,
+                                style = Stroke(width = 12.dp.toPx())
+                            )
+                        }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = item.char,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isDone) Color(0xFF2E7D32) else TextDark
-                                )
+                                text = "${(percent * 100).toInt()}%",
+                                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black, color = PrimaryPurple)
                             )
-                            if (isDone) {
-                                Text(text = "⭐", fontSize = 12.sp)
-                            }
+                            Text(
+                                text = "${masteredLetters.size} / 20 Titik",
+                                style = MaterialTheme.typography.labelSmall.copy(color = SubtitleGray)
+                            )
                         }
                     }
+                }
+            }
+        }
+        
+        item {
+            Text(
+                text = "Talaan ng Laro (Game Records)",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextDark),
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+        
+        items(gameRecords) { record ->
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, CardBorderLevel),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = record.gameName, fontWeight = FontWeight.Bold, color = TextDark)
+                        Text(text = "Puntos: ${record.score} / ${record.totalItems}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(text = "+${record.starsEarned} ⭐", color = BentoRewardsText, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2541,12 +2563,12 @@ fun LandingScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                }
-            }
+                         }
         }
     }
-}
 
+}
+}
 @Composable
 fun DataGatheringScreen(
     viewModel: AppViewModel
@@ -2996,28 +3018,25 @@ fun PantigScreen(viewModel: AppViewModel) {
             .verticalScroll(rememberScrollState())
             .testTag("pantig_screen")
     ) {
-        // Level Title
-        Box(
+        // Level Title with Back Button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFFFB74D)) // Orange for Pantig
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(Color(0xFFFFB74D))
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "LEVEL 2",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "PANTIG (SYLLABLES)",
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    fontSize = 24.sp
-                )
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.Black)
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "PANTIG (SYLLABLES)",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            )
         }
         
         Column(
@@ -3306,12 +3325,13 @@ fun PantigScreen(viewModel: AppViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
                 ) {
                     Text(if (practiceWordIdx + 1 < syllableWords.size) "Susunod na Tanong ➔" else "Tapusin ang Pagsasanay ➔", fontWeight = FontWeight.Bold)
-                }
-            }
+                         }
         }
     }
-}
 
+}
+}
+}
 @Composable
 fun SalitaScreen(viewModel: AppViewModel) {
     val categories = listOf("Mga Hayop 🐶", "Mga Pagkain 🍌", "Mga Bagay ✏️")
@@ -3360,28 +3380,25 @@ fun SalitaScreen(viewModel: AppViewModel) {
             .verticalScroll(rememberScrollState())
             .testTag("salita_screen")
     ) {
-        // Level Title
-        Box(
+        // Level Title with Back Button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFCE93D8)) // Purple for Salita
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(Color(0xFFCE93D8))
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "LEVEL 3",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "SALITA (WORDS)",
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    fontSize = 24.sp
-                )
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.Black)
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "SALITA (WORDS)",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            )
         }
         
         Column(
@@ -3634,6 +3651,7 @@ fun SalitaScreen(viewModel: AppViewModel) {
     }
 }
 
+}
 @Composable
 fun TalataScreen(viewModel: AppViewModel) {
     val paragraphs = listOf(
@@ -3666,28 +3684,25 @@ fun TalataScreen(viewModel: AppViewModel) {
             .verticalScroll(rememberScrollState())
             .testTag("talata_screen")
     ) {
-        // Level Title
-        Box(
+        // Level Title with Back Button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF81C784)) // Green for Talata
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(Color(0xFF81C784))
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "LEVEL 4",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "TALATA (PARAGRAPHS)",
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    fontSize = 24.sp
-                )
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.Black)
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "TALATA (PARAGRAPHS)",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            )
         }
         
         Column(
@@ -3695,67 +3710,30 @@ fun TalataScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = { viewModel.navigateTo(Screen.Home) },
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(1.dp, CardBorderLevel, CircleShape)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Bumalik",
-                    tint = TextDark
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "Antas 4: Mga Talata",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryPurple
-                )
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            paragraphs.forEachIndexed { idx, item ->
-                val isSelected = idx == currentIdx
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) PrimaryContainerPurple else Color.White)
-                        .border(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) PrimaryPurple else CardBorderLevel,
-                            shape = RoundedCornerShape(16.dp)
+                paragraphs.forEachIndexed { idx, _ ->
+                    val isSelected = currentIdx == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isSelected) PrimaryPurple else Color.Transparent)
+                            .clickable { currentIdx = idx }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Talata ${idx + 1}",
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else TextDark,
+                            fontSize = 14.sp
                         )
-                        .clickable {
-                            currentIdx = idx
-                            selectedAnswer = ""
-                            feedbackMsg = ""
-                            answerCorrect = false
-                        }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Talata ${idx + 1}",
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) OnPrimaryContainerPurple else TextDark,
-                        fontSize = 14.sp
-                    )
+                    }
                 }
             }
-        }
+
 
         val currentParagraph = paragraphs[currentIdx]
 
@@ -3925,12 +3903,13 @@ fun TalataScreen(viewModel: AppViewModel) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(if (currentIdx + 1 < paragraphs.size) "Susunod ➔" else "Tapusin ➔", fontWeight = FontWeight.Bold)
-                }
-            }
+                         }
         }
     }
-}
 
+}
+}
+}
 @Composable
 fun PangungusapScreen(viewModel: AppViewModel) {
     val sentences = listOf(
@@ -3961,28 +3940,25 @@ fun PangungusapScreen(viewModel: AppViewModel) {
             .verticalScroll(rememberScrollState())
             .testTag("pangungusap_screen")
     ) {
-        // Level Title
-        Box(
+        // Level Title with Back Button
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF64B5F6)) // Blue for Pangungusap
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
+                .background(Color(0xFFF06292))
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "LEVEL 5",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    fontSize = 18.sp
-                )
-                Text(
-                    text = "PANGUNGUSAP (SENTENCES)",
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    fontSize = 24.sp
-                )
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.Black)
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "PANGUNGUSAP",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            )
         }
         
         Column(
@@ -4229,6 +4205,7 @@ fun PangungusapScreen(viewModel: AppViewModel) {
     }
 }
 
+}
 @Composable
 fun KuwentoScreen(viewModel: AppViewModel) {
     val stories = listOf(
@@ -4266,29 +4243,26 @@ fun KuwentoScreen(viewModel: AppViewModel) {
                 .verticalScroll(rememberScrollState())
                 .testTag("kuwento_list_screen")
         ) {
-            // Level Title
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFFFD54F)) // Yellow for Kuwento
-                    .padding(12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "LEVEL 6",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        fontSize = 18.sp
-                    )
-                    Text(
-                        text = "KUWENTO (STORIES)",
-                        fontWeight = FontWeight.Black,
-                        color = Color.Black,
-                        fontSize = 24.sp
-                    )
-                }
+            // Level Title with Back Button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF4FC3F7))
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.Black)
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "MGA KUWENTO",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            )
+        }
             
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -4366,7 +4340,8 @@ fun KuwentoScreen(viewModel: AppViewModel) {
                 }
             }
         }
-    } else {
+    }
+} else {
         val activeStory = stories[selectedStoryIdx!!]
         val pages = activeStory.second
         val pageCount = pages.size
@@ -4543,3 +4518,570 @@ fun KuwentoScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+@Composable
+fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F4F8))
+    ) {
+        // Top Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Home) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Mga Letra (Level 1)",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text("MGA URI NG LETRA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryPurple)
+            }
+            
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BentoLevelCard(
+                        title = "I. PATINIG",
+                        subtitle = "A E I O U",
+                        icon = Icons.Default.FontDownload,
+                        bgColor = Color(0xFFF06292),
+                        onClick = { 
+                            viewModel.currentSubLevel.value = 1
+                            viewModel.selectedLetterIdx.value = 0
+                            viewModel.navigateTo(Screen.Learn) 
+                        },
+                        modifier = Modifier.weight(1f),
+                        isLocked = false
+                    )
+
+                    BentoLevelCard(
+                        title = "II. KATINIG",
+                        subtitle = "Mga katinig",
+                        icon = Icons.Default.SortByAlpha,
+                        bgColor = Color(0xFF4BA3E3),
+                        onClick = { 
+                            viewModel.currentSubLevel.value = 2
+                            viewModel.selectedLetterIdx.value = 0
+                            viewModel.navigateTo(Screen.Learn) 
+                        },
+                        modifier = Modifier.weight(1f),
+                        isLocked = false
+                    )
+                }
+            }
+            
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BentoLevelCard(
+                        title = "III. HIRAM NA LETRA",
+                        subtitle = "C F J Q V X Z Ñ",
+                        icon = Icons.Default.Public,
+                        bgColor = Color(0xFF4BB543),
+                        onClick = { 
+                            viewModel.currentSubLevel.value = 3
+                            viewModel.selectedLetterIdx.value = 0
+                            viewModel.navigateTo(Screen.Learn) 
+                        },
+                        modifier = Modifier.weight(1f),
+                        isLocked = false
+                    )
+                    
+                    Spacer(modifier = Modifier.weight(1f)) // Empty placeholder
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("PAGSASANAY (MGA KATINIG)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = PrimaryPurple)
+            }
+
+            item {
+                val exam1Passed by viewModel.exam1Passed.collectAsState()
+                val exam2Passed by viewModel.exam2Passed.collectAsState()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BentoLevelCard(
+                        title = "Pagsasanay 1",
+                        subtitle = "Piliin ang Titik",
+                        icon = Icons.Default.Quiz,
+                        bgColor = Color(0xFF9061F9),
+                        onClick = { 
+                            viewModel.navigateTo(Screen.KatinigExam1)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (exam1Passed) {
+                        BentoLevelCard(
+                            title = "Pagsasanay 2",
+                            subtitle = "Itugma ang titik",
+                            icon = Icons.Default.JoinInner,
+                            bgColor = Color(0xFF9061F9),
+                            onClick = { viewModel.navigateTo(Screen.KatinigExam2) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        BentoLevelCard(
+                            title = "Pagsasanay 2",
+                            subtitle = "Naka-lock",
+                            icon = Icons.Default.Lock,
+                            bgColor = Color.Gray,
+                            onClick = { /* Locked */ },
+                            modifier = Modifier.weight(1f),
+                            isLocked = true
+                        )
+                    }
+                }
+            }
+            
+            item {
+                val exam2Passed by viewModel.exam2Passed.collectAsState()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (exam2Passed) {
+                        BentoLevelCard(
+                            title = "Pagsasanay 3",
+                            subtitle = "Hanapin ang titik",
+                            icon = Icons.Default.Search,
+                            bgColor = Color(0xFF9061F9),
+                            onClick = { viewModel.navigateTo(Screen.KatinigExam3) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        BentoLevelCard(
+                            title = "Pagsasanay 3",
+                            subtitle = "Naka-lock",
+                            icon = Icons.Default.Lock,
+                            bgColor = Color.Gray,
+                            onClick = { /* Locked */ },
+                            modifier = Modifier.weight(1f),
+                            isLocked = true
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun KatinigExam1Screen(viewModel: AppViewModel, progress: UserProgress) {
+    var currentQuestionIdx by remember { mutableStateOf(0) }
+    var selectedAnswer by remember { mutableStateOf<String?>(null) }
+    var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+
+    val katinigLetters = viewModel.lettersKatinig
+    // Generate 5 distinct letters for the exam
+    val examLetters = remember { katinigLetters.shuffled().take(5) }
+    val currentLetter = if (currentQuestionIdx < 5) examLetters[currentQuestionIdx] else examLetters.last()
+    val choices = remember(currentLetter) {
+        val options = mutableSetOf(currentLetter.char)
+        val shuffledPool = katinigLetters.shuffled()
+        var i = 0
+        while (options.size < 4 && i < shuffledPool.size) {
+            options.add(shuffledPool[i].char)
+            i++
+        }
+        options.toList().shuffled()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F4F8))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Level1Menu) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Pagsasanay 1: Piliin ang Titik",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Ano ang simulang titik ng larawang ito?", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(currentLetter.emoji, fontSize = 60.sp)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().height(220.dp)
+            ) {
+                items(choices) { choice ->
+                    val isSelected = choice == selectedAnswer
+                    val color = if (isSelected) {
+                        if (isCorrect == true) Color.Green else Color.Red
+                    } else Color.White
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = color),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clickable {
+                                if (selectedAnswer == null) {
+                                    selectedAnswer = choice
+                                    isCorrect = choice == currentLetter.char
+                                }
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(choice, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            if (selectedAnswer != null) {
+                Button(
+                    onClick = {
+                        if (isCorrect == true) {
+                            if (currentQuestionIdx >= 4) {
+                                viewModel.exam1Passed.value = true
+                                viewModel.navigateTo(Screen.Level1Menu)
+                            } else {
+                                currentQuestionIdx++
+                                selectedAnswer = null
+                                isCorrect = null
+                            }
+                        } else {
+                            selectedAnswer = null
+                            isCorrect = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
+                }
+            }
+        }
+    }
+}
+@Composable
+fun KatinigExam2Screen(viewModel: AppViewModel, progress: UserProgress) {
+    var currentQuestionIdx by remember { mutableStateOf(0) }
+    var selectedAnswer by remember { mutableStateOf<String?>(null) }
+    var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+
+    val katinigLetters = viewModel.lettersKatinig
+    // Generate 5 distinct letters for the exam
+    val examLetters = remember { katinigLetters.shuffled().take(5) }
+    val currentLetter = if (currentQuestionIdx < 5) examLetters[currentQuestionIdx] else examLetters.last()
+    val choices = remember(currentLetter) {
+        val options = mutableSetOf(currentLetter.char.lowercase(java.util.Locale.getDefault()))
+        val shuffledPool = katinigLetters.shuffled()
+        var i = 0
+        while (options.size < 4 && i < shuffledPool.size) {
+            options.add(shuffledPool[i].char.lowercase(java.util.Locale.getDefault()))
+            i++
+        }
+        options.toList().shuffled()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F4F8))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Level1Menu) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Pagsasanay 2: Itugma ang Titik",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Ano ang maliit na titik nito?", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(currentLetter.char, fontSize = 60.sp, fontWeight = FontWeight.Bold, color = PrimaryPurple)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().height(220.dp)
+            ) {
+                items(choices) { choice ->
+                    val isSelected = choice == selectedAnswer
+                    val color = if (isSelected) {
+                        if (isCorrect == true) Color.Green else Color.Red
+                    } else Color.White
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = color),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clickable {
+                                if (selectedAnswer == null) {
+                                    selectedAnswer = choice
+                                    isCorrect = choice == currentLetter.char.lowercase(java.util.Locale.getDefault())
+                                }
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(choice, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            if (selectedAnswer != null) {
+                Button(
+                    onClick = {
+                        if (isCorrect == true) {
+                            if (currentQuestionIdx >= 4) {
+                                viewModel.exam2Passed.value = true
+                                viewModel.navigateTo(Screen.Level1Menu)
+                            } else {
+                                currentQuestionIdx++
+                                selectedAnswer = null
+                                isCorrect = null
+                            }
+                        } else {
+                            selectedAnswer = null
+                            isCorrect = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
+                }
+            }
+        }
+    }
+}
+@Composable
+fun KatinigExam3Screen(viewModel: AppViewModel, progress: UserProgress) {
+    var currentQuestionIdx by remember { mutableStateOf(0) }
+    var selectedAnswer by remember { mutableStateOf<String?>(null) }
+    var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+
+    val katinigLetters = viewModel.lettersKatinig
+    // Generate 5 distinct letters for the exam
+    val examLetters = remember { katinigLetters.shuffled().take(5) }
+    val currentLetter = if (currentQuestionIdx < 5) examLetters[currentQuestionIdx] else examLetters.last()
+    val missingWord = remember(currentLetter) {
+        val w = currentLetter.word
+        if (w.lowercase(java.util.Locale.getDefault()).startsWith(currentLetter.char.lowercase(java.util.Locale.getDefault()))) {
+            "_ " + w.substring(currentLetter.char.length)
+        } else {
+            "_ " + w.substring(1)
+        }
+    }
+    val choices = remember(currentLetter) {
+        val options = mutableSetOf(currentLetter.char)
+        val shuffledPool = katinigLetters.shuffled()
+        var i = 0
+        while (options.size < 4 && i < shuffledPool.size) {
+            options.add(shuffledPool[i].char)
+            i++
+        }
+        options.toList().shuffled()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF0F4F8))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Level1Menu) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Pagsasanay 3: Nawawalang Titik",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Ano ang nawawalang titik?", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(currentLetter.emoji, fontSize = 40.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(missingWord, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PrimaryPurple)
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().height(220.dp)
+            ) {
+                items(choices) { choice ->
+                    val isSelected = choice == selectedAnswer
+                    val color = if (isSelected) {
+                        if (isCorrect == true) Color.Green else Color.Red
+                    } else Color.White
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = color),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clickable {
+                                if (selectedAnswer == null) {
+                                    selectedAnswer = choice
+                                    isCorrect = choice == currentLetter.char
+                                }
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(choice, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            if (selectedAnswer != null) {
+                Button(
+                    onClick = {
+                        if (isCorrect == true) {
+                            if (currentQuestionIdx >= 4) {
+                                viewModel.exam3Passed.value = true
+                                viewModel.navigateTo(Screen.Level1Menu)
+                            } else {
+                                currentQuestionIdx++
+                                selectedAnswer = null
+                                isCorrect = null
+                            }
+                        } else {
+                            selectedAnswer = null
+                            isCorrect = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
+                }
+            }
+        }
+    }
+}
+

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 interface UserProgressDao {
     @Query("SELECT * FROM user_progress WHERE id = 1")
     fun getProgress(): Flow<UserProgress?>
+    
+    @Query("SELECT * FROM user_progress WHERE id = 1")
+    suspend fun getProgressSync(): UserProgress?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProgress(progress: UserProgress)

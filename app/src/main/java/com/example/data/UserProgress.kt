@@ -2,10 +2,12 @@ package com.example.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 @Entity(tableName = "user_progress")
 data class UserProgress(
     @PrimaryKey val id: Int = 1,
+    val studentId: String = UUID.randomUUID().toString(),
     val stars: Int = 0,
     val masteredLetters: String = "", // Comma-separated list like "A,B,K"
     val selectedAvatar: String = "👦", // Avatars: 👦, 👧, 🦊, 🦁, 🐼
@@ -16,5 +18,6 @@ data class UserProgress(
     val firstName: String = "",
     val middleInitial: String = "",
     val gender: String = "",
-    val unlockedLevel: Int = 1
+    val unlockedLevel: Int = 1,
+    val isSynced: Boolean = false
 )

@@ -13,13 +13,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Locale
+import com.example.AppUpdateInfo
+import com.example.UpdateChecker
 
 // Custom Navigation Screens
 sealed interface Screen {
     object Landing : Screen
     object DataGathering : Screen
     object Home : Screen
+    object Level1Menu : Screen
     object Learn : Screen
+    object KatinigExam1 : Screen
+    object KatinigExam2 : Screen
+    object KatinigExam3 : Screen
     object Games : Screen
     object Quiz : Screen
     object Progress : Screen
@@ -65,51 +71,107 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: UserProgressRepository
     private var textToSpeech: TextToSpeech? = null
     private var isTtsReady = false
+    
+    // In-app Update Checker State
+    private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
+    val updateInfo: StateFlow<AppUpdateInfo?> = _updateInfo.asStateFlow()
+    
+    fun checkForUpdates() {
+        viewModelScope.launch {
+            val update = UpdateChecker.checkForUpdates()
+            if (update != null) {
+                _updateInfo.value = update
+            }
+        }
+    }
+    
+    fun dismissUpdate() {
+        _updateInfo.value = null
+    }
 
-    // List of 20 Abakada Letters with high-quality child-friendly vocabulary
-    val letters = listOf(
+        // Letters categorized
+    val lettersPatinig = listOf(
         AbakadaLetter("A", "Aso", "Dog", "🐶", "Ang aso ay matapat na kaibigan."),
-        AbakadaLetter("B", "Baka", "Cow", "🐮", "Ang baka ay nagbibigay ng sariwang gatas."),
-        AbakadaLetter("K", "Kalabaw", "Carabao", "🐃", "Ang kalabaw ay katulong sa bukid."),
-        AbakadaLetter("D", "Daga", "Mouse", "🐭", "Mabilis tumakbo ang maliit na daga."),
         AbakadaLetter("E", "Elepante", "Elephant", "🐘", "Napakalaki ng ilong ng elepante."),
-        AbakadaLetter("G", "Gatas", "Milk", "🥛", "Uminom ng gatas para lumakas."),
-        AbakadaLetter("H", "Halaman", "Plant", "🌱", "Sariwa at berde ang halaman sa hardin."),
         AbakadaLetter("I", "Isda", "Fish", "🐟", "Lumalangoy ang isda sa malinaw na tubig."),
-        AbakadaLetter("L", "Laruan", "Toy", "🧸", "Masayang maglaro gamit ang laruan."),
-        AbakadaLetter("M", "Manok", "Chicken", "🐔", "Tumatilaok ang manok tuwing umaga."),
-        AbakadaLetter("N", "Niyog", "Coconut", "🥥", "Masarap inumin ang sabaw ng niyog."),
-        AbakadaLetter("Ng", "Ngipin", "Tooth", "🦷", "Sipilyuhin ang ngipin pagkatapos kumain."),
         AbakadaLetter("O", "Orasan", "Clock", "⏰", "Ang orasan ay nagsasabi ng oras."),
-        AbakadaLetter("P", "Pusa", "Cat", "🐱", "Mahilig maglaro ng sinulid ang pusa."),
-        AbakadaLetter("R", "Relo", "Watch", "⌚", "May suot na bagong relo si Ate."),
-        AbakadaLetter("S", "Saging", "Banana", "🍌", "Masustansya at matamis ang saging."),
-        AbakadaLetter("T", "Tinapay", "Bread", "🍞", "Masarap kainin ang mainit na tinapay."),
-        AbakadaLetter("U", "Ulan", "Rain", "🌧️", "Malamig ang patak ng ulan mula sa langit."),
-        AbakadaLetter("W", "Watawat", "Flag", "🇵🇭", "Igalang natin ang ating watawat."),
-        AbakadaLetter("Y", "Yoyo", "Yo-yo", "🪀", "Umiikot at bumababa ang yoyo ko.")
+        AbakadaLetter("U", "Ulan", "Rain", "🌧️", "Malamig ang patak ng ulan mula sa langit.")
     )
+
+    val lettersKatinig = listOf(
+        AbakadaLetter("M", "Manok", "Chicken", "🐔", "Tumatilaok ang manok tuwing umaga."),
+        AbakadaLetter("S", "Saging", "Banana", "🍌", "Masustansya at matamis ang saging."),
+        AbakadaLetter("B", "Baka", "Cow", "🐮", "Ang baka ay nagbibigay ng sariwang gatas."),
+        AbakadaLetter("T", "Tinapay", "Bread", "🍞", "Masarap kainin ang mainit na tinapay."),
+        AbakadaLetter("K", "Kalabaw", "Carabao", "🐃", "Ang kalabaw ay katulong sa bukid."),
+        AbakadaLetter("L", "Laruan", "Toy", "🧸", "Masayang maglaro gamit ang laruan."),
+        AbakadaLetter("Y", "Yoyo", "Yo-yo", "🪀", "Umiikot at bumababa ang yoyo ko."),
+        AbakadaLetter("N", "Niyog", "Coconut", "🥥", "Masarap inumin ang sabaw ng niyog."),
+        AbakadaLetter("G", "Gatas", "Milk", "🥛", "Uminom ng gatas para lumakas."),
+        AbakadaLetter("R", "Relo", "Watch", "⌚", "May suot na bagong relo si Ate."),
+        AbakadaLetter("P", "Pusa", "Cat", "🐱", "Mahilig maglaro ng sinulid ang pusa."),
+        AbakadaLetter("Ng", "Ngipin", "Tooth", "🦷", "Sipilyuhin ang ngipin pagkatapos kumain."),
+        AbakadaLetter("D", "Daga", "Mouse", "🐭", "Mabilis tumakbo ang maliit na daga."),
+        AbakadaLetter("H", "Halaman", "Plant", "🌱", "Sariwa at berde ang halaman sa hardin."),
+        AbakadaLetter("W", "Watawat", "Flag", "🇵🇭", "Igalang natin ang ating watawat.")
+    )
+
+    val lettersHiram = listOf(
+        AbakadaLetter("C", "Carrot", "Carrot", "🥕", "Kumakain ng carrot ang kuneho."),
+        AbakadaLetter("F", "Flower", "Flower", "🌻", "Napakaganda ng flower sa hardin."),
+        AbakadaLetter("J", "Jeep", "Jeep", "🚙", "Sumakay kami ng jeep pauwi."),
+        AbakadaLetter("Q", "Queso", "Cheese", "🧀", "Masarap ang queso sa pandesal."),
+        AbakadaLetter("V", "Violin", "Violin", "🎻", "Tumutugtog ng violin si kuya."),
+        AbakadaLetter("X", "Xylophone", "Xylophone", "🎹", "Tumutunog ang xylophone."),
+        AbakadaLetter("Z", "Zebra", "Zebra", "🦓", "May guhit na itim at puti ang zebra."),
+        AbakadaLetter("Ñ", "Niño", "Boy", "👦", "Mabait ang batang niño.")
+    )
+
+    val letters = lettersPatinig + lettersKatinig + lettersHiram
+    val currentSubLevel = MutableStateFlow(1)
+
+    val currentLettersList = currentSubLevel.map {
+        when(it) {
+            1 -> lettersPatinig
+            2 -> lettersKatinig
+            3 -> lettersHiram
+            else -> lettersPatinig
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), lettersPatinig)
 
     // Abakada traditional phonetic pronunciation mappings
     private val phoneticMap = mapOf(
         "A" to "Ah", "B" to "Bah", "K" to "Kah", "D" to "Dah", "E" to "Eh",
         "G" to "Gah", "H" to "Hah", "I" to "Ee", "L" to "Lah", "M" to "Mah",
         "N" to "Nah", "Ng" to "Ngah", "O" to "Oh", "P" to "Pah", "R" to "Rah",
-        "S" to "Sah", "T" to "Tah", "U" to "Oo", "W" to "Wah", "Y" to "Yah"
+        "S" to "Sah", "T" to "Tah", "U" to "Oo", "W" to "Wah", "Y" to "Yah",
+        "C" to "See", "F" to "Ef", "J" to "Jay", "Q" to "Kyu", "V" to "Vee",
+        "X" to "Eks", "Z" to "Zee", "Ñ" to "Enye"
     )
 
     // UI state holder
     val currentScreen = MutableStateFlow<Screen>(Screen.Landing)
     
+
     // User progress state loaded from Room
     val userProgress = MutableStateFlow(UserProgress())
 
+    val gameRecords = MutableStateFlow<List<com.example.data.GameRecord>>(emptyList())
+
+
     // Learning Screen State
     val selectedLetterIdx = MutableStateFlow(0)
-    val isLetterMastered = selectedLetterIdx.map { idx ->
-        val letter = letters[idx].char
-        userProgress.value.masteredLetters.split(",").contains(letter)
+    val isLetterMastered = combine(selectedLetterIdx, userProgress, currentLettersList) { idx, progress, currentList ->
+        if (idx in currentList.indices) {
+            val letter = currentList[idx].char
+            progress.masteredLetters.split(",").contains(letter)
+        } else false
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+        // Exam Progress State
+    val exam1Passed = MutableStateFlow(false)
+    val exam2Passed = MutableStateFlow(false)
+    val exam3Passed = MutableStateFlow(false)
 
     // Selected Avatar
     val avatars = listOf("👦", "👧", "🦊", "🦁", "🐼")
@@ -152,23 +214,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var mediaPlayer: android.media.MediaPlayer? = null
     val isMusicPlaying = MutableStateFlow(false)
 
-    private val attributionContext: android.content.Context by lazy {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            application.createAttributionContext("basadventure_audio")
-        } else {
-            application
-        }
-    }
+
+
 
     fun initMusic() {
+
         if (mediaPlayer == null) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     val mp = android.media.MediaPlayer().apply {
-                        setDataSource(attributionContext, android.net.Uri.parse("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"))
+                        setDataSource(getApplication<Application>(), android.net.Uri.parse("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"))
                         setAudioAttributes(
                             android.media.AudioAttributes.Builder()
-                                .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
                                 .build()
                         )
@@ -211,7 +269,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val database = AppDatabase.getDatabase(application)
-        repository = UserProgressRepository(database.userProgressDao())
+        repository = UserProgressRepository(database.userProgressDao(), database.gameRecordDao())
 
         // Collect database progress
         viewModelScope.launch {
@@ -227,7 +285,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Initialize TextToSpeech with Tagalog / Filipino locale
-        textToSpeech = TextToSpeech(attributionContext) { status ->
+        textToSpeech = TextToSpeech(getApplication<Application>()) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val result = textToSpeech?.setLanguage(Locale("fil", "PH"))
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
@@ -286,38 +344,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         speakText(phStr)
     }
 
-    fun speakLetterAndWord(letter: AbakadaLetter) {
+    fun speakLetterSound(letter: AbakadaLetter) {
         val letterPh = phoneticMap[letter.char] ?: letter.char
-        speakText("$letterPh, para sa ${letter.word}. ${letter.sampleSentence}")
+        speakText(letterPh)
     }
 
     // Master/Unmaster a letter
     fun toggleLetterMastery(letterChar: String) {
         viewModelScope.launch {
-            val currentList = userProgress.value.masteredLetters
+            val currentProgress = userProgress.value
+            val currentList = currentProgress.masteredLetters
                 .split(",")
                 .filter { it.isNotEmpty() }
                 .toMutableSet()
 
             val isAdding = !currentList.contains(letterChar)
+            var newStars = currentProgress.stars
             if (isAdding) {
                 currentList.add(letterChar)
-                addStars(1)
+                newStars = (newStars + 1).coerceAtLeast(0)
                 speakText("Mahusay! Natutunan mo ang letrang $letterChar!")
             } else {
                 currentList.remove(letterChar)
-                addStars(-1)
+                newStars = (newStars - 1).coerceAtLeast(0)
             }
 
             val updatedStr = currentList.joinToString(",")
-            val updatedProgress = userProgress.value.copy(masteredLetters = updatedStr)
+            val updatedProgress = currentProgress.copy(
+                masteredLetters = updatedStr,
+                stars = newStars
+            )
+            userProgress.value = updatedProgress // Immediate update to prevent races
             repository.saveProgress(updatedProgress)
         }
     }
 
     fun updateAvatar(avatar: String) {
         viewModelScope.launch {
-            repository.saveProgress(userProgress.value.copy(selectedAvatar = avatar))
+            val updated = userProgress.value.copy(selectedAvatar = avatar)
+            userProgress.value = updated
+            repository.saveProgress(updated)
             speakText("Pinalitan mo ang iyong karakter!")
         }
     }
@@ -345,20 +411,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleSound(enabled: Boolean) {
         viewModelScope.launch {
-            repository.saveProgress(userProgress.value.copy(soundEnabled = enabled))
+            val updated = userProgress.value.copy(soundEnabled = enabled)
+            userProgress.value = updated
+            repository.saveProgress(updated)
         }
     }
 
     fun updateTtsSpeed(speed: Float) {
         viewModelScope.launch {
-            repository.saveProgress(userProgress.value.copy(ttsSpeed = speed))
+            val updated = userProgress.value.copy(ttsSpeed = speed)
+            userProgress.value = updated
+            repository.saveProgress(updated)
+        }
+    }
+
+
+    fun saveGameRecord(gameName: String, score: Int, totalItems: Int, starsEarned: Int) {
+        viewModelScope.launch {
+            repository.saveGameRecord(
+                com.example.data.GameRecord(
+                    gameName = gameName,
+                    score = score,
+                    totalItems = totalItems,
+                    starsEarned = starsEarned
+                )
+            )
         }
     }
 
     fun addStars(amount: Int) {
         viewModelScope.launch {
-            val newStars = (userProgress.value.stars + amount).coerceAtLeast(0)
-            repository.saveProgress(userProgress.value.copy(stars = newStars))
+            val currentProgress = userProgress.value
+            val newStars = (currentProgress.stars + amount).coerceAtLeast(0)
+            val updatedProgress = currentProgress.copy(stars = newStars)
+            userProgress.value = updatedProgress // Immediate update to prevent races
+            repository.saveProgress(updatedProgress)
         }
     }
 
@@ -390,6 +477,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             isMatchCorrect.value = true
             matchFeedback.value = "TAMA!"
             addStars(2)
+            saveGameRecord("Hulaan ang Larawan", 1, 1, 2)
             speakText("Tama! ${target.word} ay nagsisimula sa letrang ${phoneticMap[target.char] ?: target.char}!")
         } else {
             isMatchCorrect.value = false
@@ -423,6 +511,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             isListenCorrect.value = true
             listenFeedback.value = "TAMA!"
             addStars(2)
+            saveGameRecord("Makinig at Piliin", 1, 1, 2)
             speakText("Tama! Iyan ang letrang ${phoneticMap[target.char] ?: target.char}!")
         } else {
             isListenCorrect.value = false
@@ -502,6 +591,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (bubbleScore.value >= bubbleTargetCount) {
                 isBubbleGameWon.value = true
                 addStars(5)
+                saveGameRecord("Putukin ang Bula", bubbleScore.value, bubbleTargetCount, 5)
                 speakText("Magaling! Nakolekta mo ang lahat ng mga bula ng letrang ${phoneticMap[bubbleTargetChar.value] ?: bubbleTargetChar.value}!")
             }
         } else {
@@ -581,6 +671,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     if (memoryCards.all { it.isMatched }) {
                         isMemoryGameWon.value = true
                         addStars(5)
+                        saveGameRecord("Tugma-tugma", 1, 1, 5)
                         speakText("Kamangha-manghang laro! Nahanap mo ang lahat ng magkapareha!")
                     }
                 }
@@ -650,14 +741,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             isQuizFinished.value = true
             val correct = quizCorrectAnswers.value
             addStars(correct * 2)
+            saveGameRecord("Pagsusulit", correct, quizTotalQuestions, correct * 2)
             
-            // Check if level should be unlocked (e.g. scored 8 or higher)
-            if (correct >= 8) {
+            // Check if level should be unlocked (e.g. scored 4 or higher out of 5)
+            if (correct >= 4) {
                 // Since this quiz is for Alpabeto (Level 1), we unlock Level 2 (Pantig)
                 unlockLevel(2)
-                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot sa $quizTotalQuestions. Bukas na ang susunod na antas!")
+                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot sa $quizTotalQuestions. Bukas na ang antas ng Pantig!")
             } else {
-                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot. Kumuha ng 8 pataas para mabuksan ang susunod na antas.")
+                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot. Kumuha ng 4 pataas para mabuksan ang antas ng Pantig.")
             }
         }
     }
