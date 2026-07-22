@@ -1,6 +1,8 @@
 package com.example
 
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,6 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -50,6 +53,10 @@ import com.example.ui.*
 import com.example.ui.theme.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import com.example.data.*
+import com.example.BuildConfig
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,6 +86,36 @@ fun BasaAdventureApp(
 ) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val progressState by viewModel.userProgress.collectAsState()
+
+    val context = LocalContext.current
+    var updateInfo by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<AppUpdateInfo?>(null) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val info = UpdateChecker.checkForUpdates()
+        if (info != null) {
+            updateInfo = info
+        }
+    }
+
+    if (updateInfo != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { /* Do nothing or allow dismiss */ },
+            title = { androidx.compose.material3.Text("Bagong Update!") },
+            text = { androidx.compose.material3.Text(updateInfo!!.releaseNotes) },
+            confirmButton = {
+                androidx.compose.material3.Button(onClick = {
+                    UpdateChecker.openDownloadLink(context, updateInfo!!.downloadUrl)
+                }) {
+                    androidx.compose.material3.Text("I-update Ngayon")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { updateInfo = null }) {
+                    androidx.compose.material3.Text("Mamaya na")
+                }
+            }
+        )
+    }
 
     Box(
         modifier = modifier
@@ -110,7 +147,6 @@ fun BasaAdventureApp(
                         is Screen.KatinigExam2 -> KatinigExam2Screen(viewModel = viewModel, progress = progressState)
                         is Screen.KatinigExam3 -> KatinigExam3Screen(viewModel = viewModel, progress = progressState)
                         is Screen.Games -> GamesScreen(viewModel = viewModel)
-                        is Screen.Quiz -> QuizScreen(viewModel = viewModel)
                         is Screen.Progress -> ProgressScreen(viewModel = viewModel, progress = progressState)
                         is Screen.Settings -> SettingsScreen(viewModel = viewModel, progress = progressState)
                         is Screen.Pantig -> PantigScreen(viewModel = viewModel)
@@ -118,6 +154,7 @@ fun BasaAdventureApp(
                         is Screen.Talata -> TalataScreen(viewModel = viewModel)
                         is Screen.Pangungusap -> PangungusapScreen(viewModel = viewModel)
                         is Screen.Kuwento -> KuwentoScreen(viewModel = viewModel)
+                        is Screen.VoiceRecording -> VoiceRecordingScreen(viewModel = viewModel)
                     }
                 }
             }
@@ -154,7 +191,8 @@ fun AppBottomNavigation(
             val items = listOf(
                 NavigationItem("Home", Screen.Home, Icons.Default.Home),
                 NavigationItem("Laro", Screen.Games, Icons.Default.Gamepad),
-                NavigationItem("Bituin", Screen.Progress, Icons.Default.Star)
+                NavigationItem("Bituin", Screen.Progress, Icons.Default.Star),
+                NavigationItem("Settings", Screen.Settings, Icons.Default.Settings)
             )
 
             items.forEach { item ->
@@ -784,40 +822,6 @@ fun LearnScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Pagsusulit Instruction & Button
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "After mastery ng lecture, proceed sa pagsusulit",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        color = SubtitleGray
-                    ),
-                    modifier = Modifier
-                        .background(Color.White, RoundedCornerShape(8.dp))
-                        .border(1.dp, CardBorderLevel, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { viewModel.navigateTo(Screen.Quiz) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                    border = BorderStroke(2.dp, PrimaryPurple),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                ) {
-                    Text(
-                        text = "PAGSUSULIT",
-                        fontWeight = FontWeight.Black,
-                        color = Color.Black,
-                        fontSize = 20.sp
-                    )
-                }
-            }
         }
     }
 }
@@ -1398,222 +1402,6 @@ fun PlayMemoryGame(viewModel: AppViewModel) {
     }
 }
 
-// --- QUIZ SCREEN IMPLEMENTATION ---
-@Composable
-fun QuizScreen(viewModel: AppViewModel) {
-    val qIdx by viewModel.quizCurrentQuestionIdx.collectAsState()
-    val targetLetter by viewModel.quizTargetLetter.collectAsState()
-    val options by viewModel.quizOptions.collectAsState()
-    val isAnswered by viewModel.quizIsAnswered.collectAsState()
-    val selectedOption by viewModel.quizSelectedOption.collectAsState()
-    val isFinished by viewModel.isQuizFinished.collectAsState()
-    val correctCount by viewModel.quizCorrectAnswers.collectAsState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .testTag("quiz_screen")
-    ) {
-        if (!isFinished) {
-            // Quiz progress indicator
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Tanong: ${qIdx + 1} / ${viewModel.quizTotalQuestions}",
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
-                )
-                Text(
-                    text = "Tama: $correctCount",
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2E7D32)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { (qIdx + 1).toFloat() / viewModel.quizTotalQuestions.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape),
-                color = PrimaryPurple,
-                trackColor = CardBorderLevel
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Main Question Card matching Screenshot 4
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, CardBorderLevel),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Text(
-                        text = "Alin ang letrang \"${targetLetter?.char ?: ""}\" para sa \"${targetLetter?.word ?: ""}\"?",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextDark),
-                        textAlign = TextAlign.Center
-                    )
-
-                    // Replay Audio trigger
-                    Button(
-                        onClick = { viewModel.speakText("Hanapin ang letrang ${targetLetter?.char ?: ""}") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE8EAF6)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Pakinggan", tint = PrimaryPurple)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Ulitin ang Tunog", color = PrimaryPurple, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    // 4 choices grid
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.height(180.dp)
-                    ) {
-                        items(options) { item ->
-                            val isCorrectChoice = item.char == targetLetter?.char
-                            val isChosen = item.char == selectedOption?.char
-                            
-                            val outlineColor = when {
-                                isAnswered && isCorrectChoice -> Color(0xFF4CAF50)
-                                isAnswered && isChosen && !isCorrectChoice -> Color(0xFFD32F2F)
-                                else -> CardBorderLevel
-                            }
-
-                            val containerColor = when {
-                                isAnswered && isCorrectChoice -> Color(0xFFE8F5E9)
-                                isAnswered && isChosen && !isCorrectChoice -> Color(0xFFFFEBEE)
-                                else -> Color.White
-                            }
-
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(72.dp)
-                                    .clickable(!isAnswered) { viewModel.selectQuizOption(item) },
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(2.dp, outlineColor),
-                                colors = CardDefaults.cardColors(containerColor = containerColor)
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = item.char,
-                                        style = MaterialTheme.typography.headlineLarge.copy(
-                                            fontWeight = FontWeight.Black,
-                                            color = if (isAnswered && isCorrectChoice) Color(0xFF2E7D32) else PrimaryPurple
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Next Question controller
-            if (isAnswered) {
-                Button(
-                    onClick = { viewModel.nextQuizQuestion() },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                ) {
-                    Text("SUSUNOD", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            }
-        } else {
-            // Quiz complete screen
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(text = "👑", fontSize = 80.sp)
-                Text(
-                    text = "Natapos ang Pagsusulit!",
-                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Black, color = PrimaryPurple)
-                )
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = CardBgLevel)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Iyong Iskor:",
-                            style = MaterialTheme.typography.titleMedium.copy(color = SubtitleGray)
-                        )
-                        Text(
-                            text = "$correctCount / ${viewModel.quizTotalQuestions}",
-                            style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Black, color = PrimaryPurple)
-                        )
-                        Text(
-                            text = "Nakakuha ka ng ${correctCount * 2} Dagdag na Bituin! ⭐",
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = BentoListenText),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = { viewModel.startNewQuiz() },
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                ) {
-                    Text("SUMUBOK MULI", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-                
-                Button(
-                    onClick = { viewModel.navigateTo(Screen.Home) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                    border = BorderStroke(2.dp, PrimaryPurple),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                ) {
-                    Text("BUMALIK SA HOME", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryPurple)
-                }
-            }
-        }
-    }
-}
-
 // --- PROGRESS SCREEN IMPLEMENTATION ---
 @Composable
 fun ProgressScreen(
@@ -1842,6 +1630,29 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.toggleSound(it) },
                         colors = SwitchDefaults.colors(checkedThumbColor = PrimaryPurple, checkedTrackColor = SecondaryPurple)
                     )
+                }
+            }
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, CardBorderLevel),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth().clickable { viewModel.navigateTo(Screen.VoiceRecording) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(text = "I-record ang Sariling Boses", fontWeight = FontWeight.Bold, color = TextDark)
+                        Text(text = "Gumawa ng sariling tunog para sa mga letra", style = MaterialTheme.typography.bodySmall.copy(color = SubtitleGray))
+                    }
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Pumunta", tint = PrimaryPurple)
                 }
             }
         }
@@ -2756,36 +2567,75 @@ fun DataGatheringScreen(
                     color = TextDark,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                val gradeLevels = listOf("Kinder", "Grade 1", "Grade 2", "Grade 3")
+                val gradeLevelsRow1 = listOf("Kinder", "Grade 1", "Grade 2", "Grade 3")
+                val gradeLevelsRow2 = listOf("Grade 4", "Grade 5", "Grade 6")
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    gradeLevels.forEach { level ->
-                        val isSelected = gradeLevel == level
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) PrimaryContainerPurple else Color.White)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) PrimaryPurple else CardBorderLevel,
-                                    shape = RoundedCornerShape(16.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        gradeLevelsRow1.forEach { level ->
+                            val isSelected = gradeLevel == level
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) PrimaryContainerPurple else Color.White)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) PrimaryPurple else CardBorderLevel,
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { gradeLevel = level }
+                                    .padding(vertical = 12.dp)
+                                    .testTag("grade_level_$level"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = level,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) OnPrimaryContainerPurple else TextDark,
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
-                                .clickable { gradeLevel = level }
-                                .padding(vertical = 12.dp)
-                                .testTag("grade_level_$level"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = level,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) OnPrimaryContainerPurple else TextDark,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            }
                         }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        gradeLevelsRow2.forEach { level ->
+                            val isSelected = gradeLevel == level
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) PrimaryContainerPurple else Color.White)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) PrimaryPurple else CardBorderLevel,
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { gradeLevel = level }
+                                    .padding(vertical = 12.dp)
+                                    .testTag("grade_level_$level"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = level,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) OnPrimaryContainerPurple else TextDark,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                        // Add an empty weight-filler if needed to match the row above, 
+                        // but weight(1f) will just expand them.
+                        // For a consistent look, I'll add a spacer or just let them be wider.
+                        // Let's just let them be wider for now.
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -4521,6 +4371,9 @@ fun KuwentoScreen(viewModel: AppViewModel) {
 
 @Composable
 fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
+    val isLevel2Unlocked by viewModel.isLevel2Unlocked.collectAsState()
+    val isLevel3Unlocked by viewModel.isLevel3Unlocked.collectAsState()
+    val isPagsasanayUnlocked by viewModel.isPagsasanayUnlocked.collectAsState()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -4581,13 +4434,13 @@ fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
                         subtitle = "Mga katinig",
                         icon = Icons.Default.SortByAlpha,
                         bgColor = Color(0xFF4BA3E3),
-                        onClick = { 
+                        onClick = { if (isLevel2Unlocked) { 
                             viewModel.currentSubLevel.value = 2
                             viewModel.selectedLetterIdx.value = 0
-                            viewModel.navigateTo(Screen.Learn) 
+                            viewModel.navigateTo(Screen.Learn) } 
                         },
                         modifier = Modifier.weight(1f),
-                        isLocked = false
+                        isLocked = !isLevel2Unlocked
                     )
                 }
             }
@@ -4602,13 +4455,13 @@ fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
                         subtitle = "C F J Q V X Z Ñ",
                         icon = Icons.Default.Public,
                         bgColor = Color(0xFF4BB543),
-                        onClick = { 
+                        onClick = { if (isLevel3Unlocked) { 
                             viewModel.currentSubLevel.value = 3
                             viewModel.selectedLetterIdx.value = 0
-                            viewModel.navigateTo(Screen.Learn) 
+                            viewModel.navigateTo(Screen.Learn) } 
                         },
                         modifier = Modifier.weight(1f),
-                        isLocked = false
+                        isLocked = !isLevel3Unlocked
                     )
                     
                     Spacer(modifier = Modifier.weight(1f)) // Empty placeholder
@@ -4631,12 +4484,13 @@ fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
                     BentoLevelCard(
                         title = "Pagsasanay 1",
                         subtitle = "Piliin ang Titik",
-                        icon = Icons.Default.Quiz,
+                        icon = Icons.Default.Assignment,
                         bgColor = Color(0xFF9061F9),
-                        onClick = { 
-                            viewModel.navigateTo(Screen.KatinigExam1)
+                        onClick = { if (isPagsasanayUnlocked) { 
+                            viewModel.navigateTo(Screen.KatinigExam1) }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        isLocked = !isPagsasanayUnlocked
                     )
 
                     if (exam1Passed) {
@@ -4697,10 +4551,320 @@ fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {
 }
 
 @Composable
+fun ConfettiEffect() {
+    val infiniteTransition = rememberInfiniteTransition(label = "confetti")
+    val particles = remember {
+        List(30) {
+            Triple(
+                (0..100).random().toFloat() / 100f, // x position %
+                (0..100).random().toFloat() / 100f, // delay %
+                Color(
+                    (0..255).random(),
+                    (0..255).random(),
+                    (0..255).random()
+                )
+            )
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        particles.forEach { (xPos, delay, color) ->
+            val yPos by infiniteTransition.animateFloat(
+                initialValue = -0.1f,
+                targetValue = 1.1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 2000, delayMillis = (delay * 2000).toInt(), easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "yPos"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        drawCircle(
+                            color = color,
+                            radius = 10.dp.toPx(),
+                            center = Offset(xPos * size.width, yPos * size.height)
+                        )
+                    }
+            )
+        }
+    }
+}
+
+@Composable
+fun ExamSummaryDialog(
+    score: Int,
+    total: Int,
+    viewModel: AppViewModel,
+    onDismiss: () -> Unit
+) {
+    LaunchedEffect(Unit) {
+        viewModel.speakText("Mahusay! Nakakuha ka ng $score sa $total.")
+        try {
+            val mediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource("https://www.soundjay.com/button/sounds/button-3.mp3")
+                setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ExamSummary", "Failed to play sound: ${e.message}")
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                ConfettiEffect()
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Napakahusay!",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PrimaryPurple
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Iyong Iskor:",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "$score / $total",
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PrimaryPurple
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Magpatuloy", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OverallSummaryDialog(
+    score1: Int,
+    score2: Int,
+    score3: Int,
+    viewModel: AppViewModel,
+    onDismiss: () -> Unit
+) {
+    val totalScore = score1 + score2 + score3
+    val totalItems = 15
+
+    LaunchedEffect(Unit) {
+        viewModel.speakText("Binabati kita! Natapos mo ang lahat ng pagsasanay. Ang iyong kabuuang iskor ay $totalScore sa $totalItems.")
+        try {
+            val mediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource("https://www.soundjay.com/misc/sounds/success-fanfare-trumpets-10.mp3")
+                setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("OverallSummary", "Failed to play sound: ${e.message}")
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(32.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+            border = BorderStroke(4.dp, PrimaryPurple)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                ConfettiEffect()
+                Column(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "LEVEL 1 MASTER!",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.Black,
+                            color = PrimaryPurple
+                        )
+                    )
+                    
+                    Text(
+                        text = "🎉 Tapos na ang Antas 1! 🎉",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = SubtitleGray
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // Detailed scores
+                    Column(
+                        modifier = Modifier
+                            .background(CardBgLevel, RoundedCornerShape(16.dp))
+                            .padding(16.dp)
+                    ) {
+                        SummaryRow("Pagsasanay 1", "$score1/5")
+                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = CardBorderLevel)
+                        SummaryRow("Pagsasanay 2", "$score2/5")
+                        Divider(modifier = Modifier.padding(vertical = 8.dp), color = CardBorderLevel)
+                        SummaryRow("Pagsasanay 3", "$score3/5")
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Text(
+                        text = "KABUUANG ISKOR",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = SubtitleGray
+                    )
+                    Text(
+                        text = "$totalScore / $totalItems",
+                        style = MaterialTheme.typography.displayMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF2E7D32)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+                    
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                    ) {
+                        Text("BUKSAN ANG LEVEL 2 (PANTIG)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SummaryRow(label: String, score: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, fontWeight = FontWeight.Medium)
+        Text(text = score, fontWeight = FontWeight.Bold, color = PrimaryPurple)
+    }
+}
+
+@Composable
+fun DetailStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Black, fontSize = 24.sp, color = PrimaryPurple)
+        Text(label, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+fun RecordItem(title: String, subtitle: String, trailing: String, color: Color) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(title, fontWeight = FontWeight.Bold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = SubtitleGray)
+            }
+            Text(trailing, fontWeight = FontWeight.Black, color = color)
+        }
+    }
+}
+
+@Composable
 fun KatinigExam1Screen(viewModel: AppViewModel, progress: UserProgress) {
     var currentQuestionIdx by remember { mutableStateOf(0) }
     var selectedAnswer by remember { mutableStateOf<String?>(null) }
     var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+    var score by remember { mutableStateOf(0) }
+    var showSummary by remember { mutableStateOf(false) }
+    
+    var timeLeft by remember { mutableStateOf(60) }
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0 && !showSummary) {
+            kotlinx.coroutines.delay(1000)
+            timeLeft--
+        }
+        if (timeLeft <= 0 && !showSummary) {
+            showSummary = true
+        }
+    }
+
+    LaunchedEffect(isCorrect) {
+        if (isCorrect != null) {
+            if (isCorrect == true) score++
+            kotlinx.coroutines.delay(1500)
+            if (currentQuestionIdx >= 4) {
+                showSummary = true
+            } else {
+                currentQuestionIdx++
+                selectedAnswer = null
+                isCorrect = null
+            }
+        }
+    }
+
+    if (showSummary) {
+        ExamSummaryDialog(
+            score = score,
+            total = 5,
+            viewModel = viewModel,
+            onDismiss = {
+                viewModel.saveExamRecord("Pagsasanay 1", score, 5)
+                viewModel.exam1Score.value = score
+                viewModel.exam1Passed.value = true
+                viewModel.navigateTo(Screen.Level1Menu)
+            }
+        )
+    }
 
     val katinigLetters = viewModel.lettersKatinig
     // Generate 5 distinct letters for the exam
@@ -4735,9 +4899,17 @@ fun KatinigExam1Screen(viewModel: AppViewModel, progress: UserProgress) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Pagsasanay 1: Piliin ang Titik",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
+                )
+            )
+            Text(
+                text = "${timeLeft}s",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
                 )
             )
         }
@@ -4760,7 +4932,19 @@ fun KatinigExam1Screen(viewModel: AppViewModel, progress: UserProgress) {
             ) {
                 Text(currentLetter.emoji, fontSize = 60.sp)
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isCorrect != null) {
+                Text(
+                    text = if (isCorrect == true) "Tama ang iyong sagot!" else "Mali ang iyong sagot",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isCorrect == true) Color(0xFF2E7D32) else Color.Red
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -4795,29 +4979,6 @@ fun KatinigExam1Screen(viewModel: AppViewModel, progress: UserProgress) {
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            
-            if (selectedAnswer != null) {
-                Button(
-                    onClick = {
-                        if (isCorrect == true) {
-                            if (currentQuestionIdx >= 4) {
-                                viewModel.exam1Passed.value = true
-                                viewModel.navigateTo(Screen.Level1Menu)
-                            } else {
-                                currentQuestionIdx++
-                                selectedAnswer = null
-                                isCorrect = null
-                            }
-                        } else {
-                            selectedAnswer = null
-                            isCorrect = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
-                }
-            }
         }
     }
 }
@@ -4826,6 +4987,47 @@ fun KatinigExam2Screen(viewModel: AppViewModel, progress: UserProgress) {
     var currentQuestionIdx by remember { mutableStateOf(0) }
     var selectedAnswer by remember { mutableStateOf<String?>(null) }
     var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+    var score by remember { mutableStateOf(0) }
+    var showSummary by remember { mutableStateOf(false) }
+
+    var timeLeft by remember { mutableStateOf(60) }
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0 && !showSummary) {
+            kotlinx.coroutines.delay(1000)
+            timeLeft--
+        }
+        if (timeLeft <= 0 && !showSummary) {
+            showSummary = true
+        }
+    }
+
+    LaunchedEffect(isCorrect) {
+        if (isCorrect != null) {
+            if (isCorrect == true) score++
+            kotlinx.coroutines.delay(1500)
+            if (currentQuestionIdx >= 4) {
+                showSummary = true
+            } else {
+                currentQuestionIdx++
+                selectedAnswer = null
+                isCorrect = null
+            }
+        }
+    }
+
+    if (showSummary) {
+        ExamSummaryDialog(
+            score = score,
+            total = 5,
+            viewModel = viewModel,
+            onDismiss = {
+                viewModel.saveExamRecord("Pagsasanay 2", score, 5)
+                viewModel.exam2Score.value = score
+                viewModel.exam2Passed.value = true
+                viewModel.navigateTo(Screen.Level1Menu)
+            }
+        )
+    }
 
     val katinigLetters = viewModel.lettersKatinig
     // Generate 5 distinct letters for the exam
@@ -4860,9 +5062,17 @@ fun KatinigExam2Screen(viewModel: AppViewModel, progress: UserProgress) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Pagsasanay 2: Itugma ang Titik",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
+                )
+            )
+            Text(
+                text = "${timeLeft}s",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
                 )
             )
         }
@@ -4885,7 +5095,19 @@ fun KatinigExam2Screen(viewModel: AppViewModel, progress: UserProgress) {
             ) {
                 Text(currentLetter.char, fontSize = 60.sp, fontWeight = FontWeight.Bold, color = PrimaryPurple)
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isCorrect != null) {
+                Text(
+                    text = if (isCorrect == true) "Tama ang iyong sagot!" else "Mali ang iyong sagot",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isCorrect == true) Color(0xFF2E7D32) else Color.Red
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -4920,29 +5142,6 @@ fun KatinigExam2Screen(viewModel: AppViewModel, progress: UserProgress) {
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            
-            if (selectedAnswer != null) {
-                Button(
-                    onClick = {
-                        if (isCorrect == true) {
-                            if (currentQuestionIdx >= 4) {
-                                viewModel.exam2Passed.value = true
-                                viewModel.navigateTo(Screen.Level1Menu)
-                            } else {
-                                currentQuestionIdx++
-                                selectedAnswer = null
-                                isCorrect = null
-                            }
-                        } else {
-                            selectedAnswer = null
-                            isCorrect = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
-                }
-            }
         }
     }
 }
@@ -4951,6 +5150,67 @@ fun KatinigExam3Screen(viewModel: AppViewModel, progress: UserProgress) {
     var currentQuestionIdx by remember { mutableStateOf(0) }
     var selectedAnswer by remember { mutableStateOf<String?>(null) }
     var isCorrect by remember { mutableStateOf<Boolean?>(null) }
+    var score by remember { mutableStateOf(0) }
+    var showSummary by remember { mutableStateOf(false) }
+
+    var timeLeft by remember { mutableStateOf(60) }
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0 && !showSummary) {
+            kotlinx.coroutines.delay(1000)
+            timeLeft--
+        }
+        if (timeLeft <= 0 && !showSummary) {
+            showSummary = true
+        }
+    }
+
+    LaunchedEffect(isCorrect) {
+        if (isCorrect != null) {
+            if (isCorrect == true) score++
+            kotlinx.coroutines.delay(1500)
+            if (currentQuestionIdx >= 4) {
+                showSummary = true
+            } else {
+                currentQuestionIdx++
+                selectedAnswer = null
+                isCorrect = null
+            }
+        }
+    }
+
+    var showOverallSummary by remember { mutableStateOf(false) }
+
+    if (showSummary) {
+        ExamSummaryDialog(
+            score = score,
+            total = 5,
+            viewModel = viewModel,
+            onDismiss = {
+                viewModel.saveExamRecord("Pagsasanay 3", score, 5)
+                viewModel.exam3Score.value = score
+                viewModel.exam3Passed.value = true
+                showSummary = false
+                showOverallSummary = true
+            }
+        )
+    }
+
+    if (showOverallSummary) {
+        val s1 by viewModel.exam1Score.collectAsState()
+        val s2 by viewModel.exam2Score.collectAsState()
+        val s3 by viewModel.exam3Score.collectAsState()
+        
+        OverallSummaryDialog(
+            score1 = s1,
+            score2 = s2,
+            score3 = score, // using current session score for immediate feedback
+            viewModel = viewModel,
+            onDismiss = {
+                viewModel.unlockLevel(2)
+                viewModel.navigateTo(Screen.Home)
+            }
+        )
+    }
 
     val katinigLetters = viewModel.lettersKatinig
     // Generate 5 distinct letters for the exam
@@ -4993,9 +5253,17 @@ fun KatinigExam3Screen(viewModel: AppViewModel, progress: UserProgress) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Pagsasanay 3: Nawawalang Titik",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
+                )
+            )
+            Text(
+                text = "${timeLeft}s",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Red
                 )
             )
         }
@@ -5023,7 +5291,19 @@ fun KatinigExam3Screen(viewModel: AppViewModel, progress: UserProgress) {
                     Text(missingWord, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PrimaryPurple)
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isCorrect != null) {
+                Text(
+                    text = if (isCorrect == true) "Tama ang iyong sagot!" else "Mali ang iyong sagot",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isCorrect == true) Color(0xFF2E7D32) else Color.Red
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -5058,30 +5338,115 @@ fun KatinigExam3Screen(viewModel: AppViewModel, progress: UserProgress) {
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            
-            if (selectedAnswer != null) {
-                Button(
-                    onClick = {
-                        if (isCorrect == true) {
-                            if (currentQuestionIdx >= 4) {
-                                viewModel.exam3Passed.value = true
-                                viewModel.navigateTo(Screen.Level1Menu)
-                            } else {
-                                currentQuestionIdx++
-                                selectedAnswer = null
-                                isCorrect = null
-                            }
-                        } else {
-                            selectedAnswer = null
-                            isCorrect = null
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp)
-                ) {
-                    Text(if (isCorrect == true && currentQuestionIdx >= 4) "Tapusin" else if (isCorrect == true) "Susunod" else "Ulitin")
+        }
+    }
+}
+
+
+@Composable
+fun VoiceRecordingScreen(viewModel: AppViewModel) {
+    var hasPermission by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted -> hasPermission = isGranted }
+    )
+
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("voice_recording_screen")
+    ) {
+        // App bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryPurple)
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { viewModel.navigateTo(Screen.Settings) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Bumalik", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "RECORD BOSES",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = 1.sp
+                )
+            )
+        }
+
+        if (!hasPermission) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Kailangan ng mikropono para makapag-record.")
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                items(viewModel.letters) { letter ->
+                    VoiceRecordItem(letter = letter.char, viewModel = viewModel)
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
     }
 }
 
+@Composable
+fun VoiceRecordItem(letter: String, viewModel: AppViewModel) {
+    var isRecording by remember { mutableStateOf(false) }
+    var hasRecording by remember { mutableStateOf(viewModel.getRecordedAudioFile(letter).exists()) }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, CardBorderLevel),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Letrang $letter", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hasRecording && !isRecording) {
+                    IconButton(onClick = { viewModel.playRecordedAudio(letter) }) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = PrimaryPurple)
+                    }
+                    IconButton(onClick = { 
+                        viewModel.deleteRecordedAudio(letter) 
+                        hasRecording = false
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                    }
+                }
+                
+                IconButton(onClick = {
+                    if (isRecording) {
+                        viewModel.stopRecording()
+                        isRecording = false
+                        hasRecording = true
+                    } else {
+                        viewModel.startRecording(letter)
+                        isRecording = true
+                    }
+                }) {
+                    Icon(
+                        if (isRecording) Icons.Default.Stop else Icons.Default.Mic, 
+                        contentDescription = if (isRecording) "Stop" else "Record", 
+                        tint = if (isRecording) Color.Red else PrimaryPurple
+                    )
+                }
+            }
+        }
+    }
+}

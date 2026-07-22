@@ -16,3 +16,8 @@
 local.properties
 .env
 debug.keystore
+-e 
+# Teacher Dashboard
+teacher-dashboard/node_modules/
+teacher-dashboard/dist/
+teacher-dashboard/.env.local

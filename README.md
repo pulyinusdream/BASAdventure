@@ -1,21 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# BAS Adventure - Educational App for Kids
 
-# Run and deploy your AI Studio app
+BAS Adventure is an Android application designed to help children learn the Filipino alphabet (ABAKADA) and basic reading skills through interactive games and exams.
 
-This contains everything you need to run your app locally.
+## Project Structure
+- **/app**: The Android application (Kotlin + Jetpack Compose).
+- **/teacher-dashboard**: A separate React + TypeScript web application for teachers to monitor student progress.
+- **supabase_schema.sql**: SQL script to set up the required tables in Supabase.
 
-View your app in AI Studio: https://ai.studio/apps/2f91dca2-4838-47f9-a951-d31a86ab909b
+## Getting Started
 
-## Run Locally
+### 1. Database Setup
+1. Create a free project on [Supabase](https://supabase.com/).
+2. Open the SQL Editor in your Supabase dashboard.
+3. Paste and run the contents of `supabase_schema.sql` to create the necessary tables.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+### 2. Android App Setup
+1. Open the project in Android Studio.
+2. Configure your Supabase credentials in the AI Studio Secrets panel or a `.env` file:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+3. Build and run the app.
 
+### 3. Teacher Dashboard Setup
+1. Navigate to the `teacher-dashboard` directory.
+2. Install dependencies: `npm install`
+3. Configure credentials in `.env.local`:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Run the development server: `npm run dev`
+5. Login with:
+   - **Username**: `teacher`
+   - **Password**: `monitoring`
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## Features
+- Interactive letter learning (A, E, I, O, U, and Katinig).
+- Game-based reinforcement with star rewards.
+- Formal exams to track mastery.
+- Real-time progress syncing across devices.
+- Teacher dashboard for class-wide and individual monitoring.

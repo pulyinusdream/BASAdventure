@@ -3,12 +3,14 @@ package com.example.ui
 import android.app.Application
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import java.io.File
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.AppDatabase
-import com.example.data.UserProgress
-import com.example.data.UserProgressRepository
+import com.example.data.*
+import com.example.BuildConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,24 +19,24 @@ import com.example.AppUpdateInfo
 import com.example.UpdateChecker
 
 // Custom Navigation Screens
-sealed interface Screen {
-    object Landing : Screen
-    object DataGathering : Screen
-    object Home : Screen
-    object Level1Menu : Screen
-    object Learn : Screen
-    object KatinigExam1 : Screen
-    object KatinigExam2 : Screen
-    object KatinigExam3 : Screen
-    object Games : Screen
-    object Quiz : Screen
-    object Progress : Screen
-    object Settings : Screen
-    object Pantig : Screen
-    object Salita : Screen
-    object Talata : Screen
-    object Pangungusap : Screen
-    object Kuwento : Screen
+sealed class Screen {
+    data object Landing : Screen()
+    data object DataGathering : Screen()
+    data object Home : Screen()
+    data object Level1Menu : Screen()
+    data object Learn : Screen()
+    data object KatinigExam1 : Screen()
+    data object KatinigExam2 : Screen()
+    data object KatinigExam3 : Screen()
+    data object Games : Screen()
+    data object Progress : Screen()
+    data object Settings : Screen()
+    data object VoiceRecording : Screen()
+    data object Pantig : Screen()
+    data object Salita : Screen()
+    data object Talata : Screen()
+    data object Pangungusap : Screen()
+    data object Kuwento : Screen()
 }
 
 // Learning Item Model
@@ -71,6 +73,78 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: UserProgressRepository
     private var textToSpeech: TextToSpeech? = null
     private var isTtsReady = false
+    private var audioPlayer: MediaPlayer? = null
+    private var mediaRecorder: MediaRecorder? = null
+
+    fun getRecordedAudioFile(char: String): File {
+        return File(getApplication<Application>().filesDir, "recorded_letter_${char.uppercase()}.3gp")
+    }
+
+    fun deleteRecordedAudio(char: String) {
+        val file = getRecordedAudioFile(char)
+        if (file.exists()) {
+            file.delete()
+        }
+    }
+
+    fun playRecordedAudio(char: String): Boolean {
+        if (!userProgress.value.soundEnabled) return true
+        val file = getRecordedAudioFile(char)
+        if (file.exists()) {
+            try {
+                audioPlayer?.release()
+                val context = getApplication<Application>()
+                val audioContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    context.createAttributionContext("basadventure_audio")
+                } else {
+                    context
+                }
+                audioPlayer = MediaPlayer().apply {
+                    setDataSource(audioContext, android.net.Uri.fromFile(file))
+                    prepare()
+                    start()
+                }
+                return true
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Audio playing failed: ${e.message}")
+            }
+        }
+        return false
+    }
+
+    fun startRecording(char: String) {
+        val file = getRecordedAudioFile(char)
+        val context = getApplication<Application>()
+        mediaRecorder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val attributionContext = context.createAttributionContext("basadventure_audio")
+            MediaRecorder(attributionContext)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }.apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+            setOutputFile(file.absolutePath)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            try {
+                prepare()
+                start()
+            } catch (e: Exception) {
+                Log.e("AppViewModel", "Audio recording failed: ${e.message}")
+            }
+        }
+    }
+
+    fun stopRecording() {
+        try {
+            mediaRecorder?.stop()
+        } catch (e: Exception) {
+            Log.e("AppViewModel", "Stop recording failed: ${e.message}")
+        } finally {
+            mediaRecorder?.release()
+            mediaRecorder = null
+        }
+    }
     
     // In-app Update Checker State
     private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
@@ -157,6 +231,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val userProgress = MutableStateFlow(UserProgress())
 
     val gameRecords = MutableStateFlow<List<com.example.data.GameRecord>>(emptyList())
+    val examRecords = MutableStateFlow<List<com.example.data.ExamRecord>>(emptyList())
+
+    fun saveExamRecord(examName: String, score: Int, totalItems: Int) {
+        viewModelScope.launch {
+            repository.saveExamRecord(
+                com.example.data.ExamRecord(
+                    examName = examName,
+                    score = score,
+                    totalItems = totalItems
+                )
+            )
+        }
+    }
 
 
     // Learning Screen State
@@ -169,9 +256,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
         // Exam Progress State
+    val isLevel2Unlocked = userProgress.map { progress ->
+        val mastered = progress.masteredLetters.split(",")
+        lettersPatinig.all { it.char in mastered }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isLevel3Unlocked = userProgress.map { progress ->
+        val mastered = progress.masteredLetters.split(",")
+        lettersKatinig.all { it.char in mastered }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isPagsasanayUnlocked = userProgress.map { progress ->
+        val mastered = progress.masteredLetters.split(",")
+        lettersHiram.all { it.char in mastered }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val exam1Passed = MutableStateFlow(false)
     val exam2Passed = MutableStateFlow(false)
     val exam3Passed = MutableStateFlow(false)
+
+    val exam1Score = MutableStateFlow(0)
+    val exam2Score = MutableStateFlow(0)
+    val exam3Score = MutableStateFlow(0)
 
     // Selected Avatar
     val avatars = listOf("👦", "👧", "🦊", "🦁", "🐼")
@@ -201,16 +307,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val memoryMatchMoves = MutableStateFlow(0)
     val isMemoryGameWon = MutableStateFlow(false)
 
-    // --- GENERAL QUIZ STATE ---
-    val quizCurrentQuestionIdx = MutableStateFlow(0)
-    val quizTotalQuestions = 5
-    val quizCorrectAnswers = MutableStateFlow(0)
-    val quizTargetLetter = MutableStateFlow<AbakadaLetter?>(null)
-    val quizOptions = MutableStateFlow<List<AbakadaLetter>>(emptyList())
-    val quizSelectedOption = MutableStateFlow<AbakadaLetter?>(null)
-    val quizIsAnswered = MutableStateFlow(false)
-    val isQuizFinished = MutableStateFlow(false)
-
     private var mediaPlayer: android.media.MediaPlayer? = null
     val isMusicPlaying = MutableStateFlow(false)
 
@@ -222,8 +318,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (mediaPlayer == null) {
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 try {
+                    val context = getApplication<Application>()
+                    val audioContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        context.createAttributionContext("basadventure_audio")
+                    } else {
+                        context
+                    }
                     val mp = android.media.MediaPlayer().apply {
-                        setDataSource(getApplication<Application>(), android.net.Uri.parse("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"))
+                        setDataSource(audioContext, android.net.Uri.parse("https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3"))
                         setAudioAttributes(
                             android.media.AudioAttributes.Builder()
                                 .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
@@ -269,7 +371,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val database = AppDatabase.getDatabase(application)
-        repository = UserProgressRepository(database.userProgressDao(), database.gameRecordDao())
+        repository = UserProgressRepository(
+            database.userProgressDao(),
+            database.gameRecordDao(),
+            database.examRecordDao()
+        )
 
         // Collect database progress
         viewModelScope.launch {
@@ -285,7 +391,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Initialize TextToSpeech with Tagalog / Filipino locale
-        textToSpeech = TextToSpeech(getApplication<Application>()) { status ->
+        val context = getApplication<Application>()
+        val ttsContext = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            context.createAttributionContext("basadventure_audio")
+        } else {
+            context
+        }
+        textToSpeech = TextToSpeech(ttsContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val result = textToSpeech?.setLanguage(Locale("fil", "PH"))
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
@@ -321,9 +433,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             is Screen.Games -> {
                 // reset or prepare games
             }
-            is Screen.Quiz -> {
-                startNewQuiz()
-            }
             else -> {}
         }
     }
@@ -340,11 +449,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun speakLetterPhonetic(char: String) {
+        if (playRecordedAudio(char)) return
         val phStr = phoneticMap[char] ?: char
         speakText(phStr)
     }
 
     fun speakLetterSound(letter: AbakadaLetter) {
+        if (playRecordedAudio(letter.char)) return
         val letterPh = phoneticMap[letter.char] ?: letter.char
         speakText(letterPh)
     }
@@ -689,41 +800,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- QUIZ LOGIC ---
-    fun startNewQuiz() {
-        quizCurrentQuestionIdx.value = 0
-        quizCorrectAnswers.value = 0
-        isQuizFinished.value = false
-        generateQuizQuestion()
-    }
-
-    fun generateQuizQuestion() {
-        quizSelectedOption.value = null
-        quizIsAnswered.value = false
-
-        val target = letters.random()
-        quizTargetLetter.value = target
-
-        val others = letters.filter { it.char != target.char }.shuffled().take(3)
-        quizOptions.value = (others + target).shuffled()
-
-        speakText("Alin ang letrang ${phoneticMap[target.char] ?: target.char} para sa salitang ${target.word}?")
-    }
-
-    fun selectQuizOption(selected: AbakadaLetter) {
-        if (quizIsAnswered.value) return
-        quizSelectedOption.value = selected
-        quizIsAnswered.value = true
-
-        val target = quizTargetLetter.value ?: return
-        if (selected.char == target.char) {
-            quizCorrectAnswers.value += 1
-            speakText("Tama! Napakahusay!")
-        } else {
-            speakText("Mali, ito ay letrang ${phoneticMap[target.char] ?: target.char}.")
-        }
-    }
-
     fun unlockLevel(level: Int) {
         viewModelScope.launch {
             if (level > userProgress.value.unlockedLevel) {
@@ -732,31 +808,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun nextQuizQuestion() {
-        val currentIdx = quizCurrentQuestionIdx.value
-        if (currentIdx + 1 < quizTotalQuestions) {
-            quizCurrentQuestionIdx.value = currentIdx + 1
-            generateQuizQuestion()
-        } else {
-            isQuizFinished.value = true
-            val correct = quizCorrectAnswers.value
-            addStars(correct * 2)
-            saveGameRecord("Pagsusulit", correct, quizTotalQuestions, correct * 2)
-            
-            // Check if level should be unlocked (e.g. scored 4 or higher out of 5)
-            if (correct >= 4) {
-                // Since this quiz is for Alpabeto (Level 1), we unlock Level 2 (Pantig)
-                unlockLevel(2)
-                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot sa $quizTotalQuestions. Bukas na ang antas ng Pantig!")
-            } else {
-                speakText("Natapos ang pagsusulit! Nakakuha ka ng $correct tamang sagot. Kumuha ng 4 pataas para mabuksan ang antas ng Pantig.")
-            }
-        }
-    }
-
     override fun onCleared() {
         textToSpeech?.shutdown()
         try {
+            audioPlayer?.release()
             mediaPlayer?.release()
             mediaPlayer = null
         } catch (e: Exception) {

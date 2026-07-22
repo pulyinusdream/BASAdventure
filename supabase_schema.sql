@@ -38,3 +38,18 @@ ON user_progress FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow anonymous read/write to game_records" 
 ON game_records FOR ALL USING (true) WITH CHECK (true);
+
+-- Table for Exam Records
+CREATE TABLE exam_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID REFERENCES user_progress(student_id) ON DELETE CASCADE,
+    exam_name TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    total_items INTEGER NOT NULL,
+    timestamp BIGINT NOT NULL,
+    synced_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE exam_records ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anonymous read/write to exam_records" 
+ON exam_records FOR ALL USING (true) WITH CHECK (true);

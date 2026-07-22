@@ -1,0 +1,2 @@
+#!/bin/bash
+sed -i 's/fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {/fun Level1MenuScreen(viewModel: AppViewModel, progress: UserProgress) {\n    val isLevel2Unlocked by viewModel.isLevel2Unlocked.collectAsState()\n    val isLevel3Unlocked by viewModel.isLevel3Unlocked.collectAsState()\n    val isPagsasanayUnlocked by viewModel.isPagsasanayUnlocked.collectAsState()/' app/src/main/java/com/example/MainActivity.kt

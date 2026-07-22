@@ -5,6 +5,7 @@ import com.squareup.moshi.JsonClass
 import retrofit2.http.Body
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.GET
 import retrofit2.http.Query
 
 @JsonClass(generateAdapter = true)
@@ -31,6 +32,15 @@ data class GameRecordDto(
     @Json(name = "played_at") val playedAt: String
 )
 
+@JsonClass(generateAdapter = true)
+data class ExamRecordDto(
+    @Json(name = "student_id") val studentId: String,
+    @Json(name = "exam_name") val examName: String,
+    @Json(name = "score") val score: Int,
+    @Json(name = "total_items") val totalItems: Int,
+    @Json(name = "timestamp") val timestamp: Long
+)
+
 interface SupabaseApi {
     @POST("rest/v1/user_progress")
     suspend fun upsertUserProgress(
@@ -46,5 +56,12 @@ interface SupabaseApi {
         @Header("apikey") apiKey: String,
         @Header("Authorization") auth: String,
         @Body record: GameRecordDto
+    )
+
+    @POST("rest/v1/exam_records")
+    suspend fun insertExamRecord(
+        @Header("apikey") apiKey: String,
+        @Header("Authorization") auth: String,
+        @Body record: ExamRecordDto
     )
 }
