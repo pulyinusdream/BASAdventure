@@ -6,6 +6,7 @@ export interface UserProgress {
   stars: number;
   unlocked_level: number;
   selected_avatar: string;
+  profile_image?: string;
   mastered_letters?: string;
 }
 

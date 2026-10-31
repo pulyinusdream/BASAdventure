@@ -504,7 +504,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         surname: String,
         firstName: String,
         middleInitial: String,
-        gender: String
+        gender: String,
+        profileImage: String?
     ) {
         viewModelScope.launch {
             val updated = userProgress.value.copy(
@@ -512,7 +513,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 surname = surname,
                 firstName = firstName,
                 middleInitial = middleInitial,
-                gender = gender
+                gender = gender,
+                profileImage = profileImage
             )
             userProgress.value = updated
             repository.saveProgress(updated)

@@ -52,7 +52,8 @@ class UserProgressRepository(
                     stars = currentProgress.stars,
                     masteredLetters = currentProgress.masteredLetters,
                     selectedAvatar = currentProgress.selectedAvatar,
-                    unlockedLevel = currentProgress.unlockedLevel
+                    unlockedLevel = currentProgress.unlockedLevel,
+                    profileImage = currentProgress.profileImage
                 )
                 try {
                     SupabaseClient.api.upsertUserProgress(

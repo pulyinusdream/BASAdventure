@@ -57,8 +57,37 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import com.example.data.*
 import com.example.BuildConfig
+import android.net.Uri
+import android.util.Log
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import coil.compose.AsyncImage
+import java.io.FileOutputStream
+import android.content.Context
+import androidx.core.content.FileProvider
+import java.io.File
+
+// Helper to convert Uri to Base64
+private fun uriToBase64(context: Context, uri: Uri): String? {
+    val uriString = uri.toString()
+    if (uriString.startsWith("data:image")) return uriString
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+        if (bitmap == null) return null
+        val scaled = Bitmap.createScaledBitmap(bitmap, 200, 200, true)
+        val out = java.io.ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
+        "data:image/jpeg;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+    } catch (e: Exception) {
+        Log.e("Base64", "Error converting uri to base64: ${e.message}")
+        null
+    }
+}
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -334,7 +363,16 @@ fun HomeScreen(
                         .background(Color(0xFFE3F2FD)) // Light blue background like the volume icon in the reference
                         .testTag("avatar_button")
                 ) {
-                    Text(text = progress.selectedAvatar, fontSize = 24.sp)
+                    if (progress.profileImage != null) {
+                        AsyncImage(
+                            model = progress.profileImage,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(text = progress.selectedAvatar, fontSize = 24.sp)
+                    }
                 }
             }
         }
@@ -1580,6 +1618,66 @@ fun SettingsScreen(
     var mathChallenge by remember { mutableStateOf(Pair(0, 0)) }
     var lockErrorMsg by remember { mutableStateOf("") }
 
+    val context = LocalContext.current
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val file = File(context.filesDir, "profile_${System.currentTimeMillis()}.jpg")
+                val outputStream = FileOutputStream(file)
+                inputStream?.copyTo(outputStream)
+                inputStream?.close()
+                outputStream.close()
+                val imageBase64 = uriToBase64(context, Uri.fromFile(file))
+                viewModel.saveGatheredData(
+                    progress.gradeLevel,
+                    progress.surname,
+                    progress.firstName,
+                    progress.middleInitial,
+                    progress.gender,
+                    imageBase64
+                )
+            } catch (e: Exception) {
+                Log.e("Settings", "Error saving gallery image: ${e.message}")
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && tempCameraUri != null) {
+            val imageBase64 = uriToBase64(context, tempCameraUri!!)
+            viewModel.saveGatheredData(
+                progress.gradeLevel,
+                progress.surname,
+                progress.firstName,
+                progress.middleInitial,
+                progress.gender,
+                imageBase64
+            )
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val file = File(context.filesDir, "camera_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            tempCameraUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1603,6 +1701,81 @@ fun SettingsScreen(
                     text = "Mga Pag-aayos (Settings)",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = TextDark)
                 )
+            }
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, CardBorderLevel),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(70.dp)
+                            .clip(CircleShape)
+                            .background(PrimaryContainerPurple)
+                            .border(2.dp, PrimaryPurple, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (progress.profileImage != null) {
+                            AsyncImage(
+                                model = progress.profileImage,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(text = progress.selectedAvatar, fontSize = 32.sp)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Column {
+                        Text(
+                            text = "${progress.firstName} ${progress.surname}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextDark)
+                        )
+                        Text(
+                            text = "${progress.gradeLevel} · ${progress.gender}",
+                            style = MaterialTheme.typography.bodySmall.copy(color = SubtitleGray)
+                        )
+                        if (progress.studentId.isNotEmpty()) {
+                            Text(
+                                text = "ID: ${progress.studentId.take(8).uppercase()}",
+                                style = MaterialTheme.typography.labelSmall.copy(color = SubtitleGray, fontSize = 10.sp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(
+                                onClick = { galleryLauncher.launch("image/*") },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(PrimaryContainerPurple, CircleShape)
+                            ) {
+                                Icon(imageVector = Icons.Default.PhotoLibrary, contentDescription = "Gallery", modifier = Modifier.size(16.dp), tint = PrimaryPurple)
+                            }
+                            
+                            IconButton(
+                                onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(PrimaryContainerPurple, CircleShape)
+                            ) {
+                                Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "Camera", modifier = Modifier.size(16.dp), tint = PrimaryPurple)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -2392,6 +2565,55 @@ fun DataGatheringScreen(
     var firstName by remember { mutableStateOf(progress.firstName) }
     var middleInitial by remember { mutableStateOf(progress.middleInitial) }
     var gender by remember { mutableStateOf(progress.gender) }
+    
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var profileImageUri by remember { mutableStateOf<Uri?>(progress.profileImage?.let { Uri.parse(it) }) }
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val file = File(context.filesDir, "profile_${System.currentTimeMillis()}.jpg")
+                val outputStream = FileOutputStream(file)
+                inputStream?.copyTo(outputStream)
+                inputStream?.close()
+                outputStream.close()
+                profileImageUri = Uri.fromFile(file)
+            } catch (e: Exception) {
+                Log.e("DataGathering", "Error saving gallery image: ${e.message}")
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && tempCameraUri != null) {
+            profileImageUri = tempCameraUri
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val file = File(context.filesDir, "camera_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            tempCameraUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Log.e("DataGathering", "Camera permission denied")
+        }
+    }
 
     val isFormValid = gradeLevel.isNotEmpty() && surname.isNotBlank() && firstName.isNotBlank() && gender.isNotEmpty()
 
@@ -2465,6 +2687,73 @@ fun DataGatheringScreen(
                                 color = SubtitleGray
                             )
                         )
+                    }
+                }
+            }
+
+            // --- PROFILE PICTURE SECTION ---
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Larawan ng Estudyante",
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(3.dp, PrimaryPurple, CircleShape)
+                        .testTag("profile_image_box"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (profileImageUri != null) {
+                        AsyncImage(
+                            model = profileImageUri,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "👤", fontSize = 60.sp)
+                        }
+                    }
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.testTag("gallery_button"),
+                        border = BorderStroke(1.dp, PrimaryPurple)
+                    ) {
+                        Icon(imageVector = Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(20.dp), tint = PrimaryPurple)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Album", color = PrimaryPurple)
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    OutlinedButton(
+                        onClick = { permissionLauncher.launch(android.Manifest.permission.CAMERA) },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.testTag("camera_button"),
+                        border = BorderStroke(1.dp, PrimaryPurple)
+                    ) {
+                        Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(20.dp), tint = PrimaryPurple)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Kamera", color = PrimaryPurple)
                     }
                 }
             }
@@ -2733,7 +3022,8 @@ fun DataGatheringScreen(
                             surname = surname,
                             firstName = firstName,
                             middleInitial = middleInitial,
-                            gender = gender
+                            gender = gender,
+                            profileImage = profileImageUri?.let { uriToBase64(context, it) }
                         )
                         viewModel.navigateTo(Screen.Home)
                     }

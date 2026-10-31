@@ -19,7 +19,8 @@ data class UserProgressDto(
     @Json(name = "stars") val stars: Int,
     @Json(name = "mastered_letters") val masteredLetters: String,
     @Json(name = "selected_avatar") val selectedAvatar: String,
-    @Json(name = "unlocked_level") val unlockedLevel: Int
+    @Json(name = "unlocked_level") val unlockedLevel: Int,
+    @Json(name = "profile_image") val profileImage: String? = null
 )
 
 @JsonClass(generateAdapter = true)

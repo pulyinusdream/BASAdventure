@@ -12,6 +12,7 @@ CREATE TABLE user_progress (
     mastered_letters TEXT,
     selected_avatar TEXT,
     unlocked_level INTEGER DEFAULT 1,
+    profile_image TEXT,
     last_synced_at TIMESTAMPTZ DEFAULT now()
 );
 

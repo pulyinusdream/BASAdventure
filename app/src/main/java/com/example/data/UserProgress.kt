@@ -18,6 +18,7 @@ data class UserProgress(
     val firstName: String = "",
     val middleInitial: String = "",
     val gender: String = "",
+    val profileImage: String? = null,
     val unlockedLevel: Int = 1,
     val isSynced: Boolean = false
 )
